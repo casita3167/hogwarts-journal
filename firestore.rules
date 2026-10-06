@@ -1,0 +1,28 @@
+// 若同一個 Firebase 專案已有其他網站，請只將下方 match 區塊加入原有規則，保留其他網站規則。
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  match /hogwartsJournalPages/{pageId} {
+   function signedIn() { return request.auth != null; }
+   function owned() { return signedIn() && resource.data.ownerUid == request.auth.uid; }
+   function valid() {
+    let d = request.resource.data;
+    return d.keys().hasAll(['name','year','size','html','src','ownerUid','revision','createdAt','updatedAt'])
+      && d.keys().hasOnly(['name','year','size','html','src','ownerUid','revision','createdAt','updatedAt'])
+      && d.name is string && d.name.size() > 0 && d.name.size() <= 1000
+      && d.year is int && d.year >= 1000 && d.year <= 9999
+      && d.size is int && d.size >= 12 && d.size <= 30
+      && d.html is string && d.src is string
+      && d.html.size() + d.src.size() <= 850000
+      && d.ownerUid == request.auth.uid && d.revision is int
+      && d.updatedAt == request.time;
+   }
+   allow read: if true;
+   allow create: if signedIn() && valid() && request.resource.data.revision == 1 && request.resource.data.createdAt == request.time;
+   allow update: if owned() && valid() && request.resource.data.ownerUid == resource.data.ownerUid
+      && request.resource.data.createdAt == resource.data.createdAt
+      && request.resource.data.revision == resource.data.revision + 1;
+   allow delete: if owned();
+  }
+ }
+}
